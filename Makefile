@@ -8,27 +8,35 @@ keyID = francois.willame@gmail.com
 DATE := $(shell date -I)
 DTARGET := $(TARGET).$(DATE).tsv
 
-SRC_DIR	= dagbok
-XLS_FILES = $(wildcard $(SRC_DIR)/*.xlsx)					# alternativ 1
-#XLS_FILES := $(shell find -L $(SRC_DIR) -name '*.xlsx')		# alternativ 2
+# with in2csv
+xls2csv1:
+	find .  -name "*.xls" -o -name "*.xlsx" -exec in2csv --write-sheets "-" {}  \;
 
-all:$(DTARGET)
+# with ssconvert (gnumeric) and exec
+xls2csv2:
+	find .  -name "*.xls" -o -name "*.xlsx" -exec ssconvert -S {} {}.%s.csv  \;  # 2>/dev/null
 
-$(DTARGET):
-	find -L $(SRC_DIR)  -name '*.xls' -o -name '*.xlsx' -exec in2csv --write-sheets "-" {}  \;
-	find -L $(SRC_DIR) -name '*.csv' -exec ./logbook.awk {} > $@ \;
-	echo "$@ done"
+# with ssconvert (gnumeric) and xargs
+xls2csv3:
+	find .  -name "*.xls" -o -name "*.xlsx" | xargs -I{} ssconvert -S {} $(patsubst %.xlsx,%.,{}).%s.csv
 
-#
-#	find -L $(SRC_DIR)  -name '*.xls' -o -name '*.xlsx' | xargs -0 in2csv -f xlsx --write-sheets "-"
-# xargs -d '\n'
-# options for in2csv  --date-format "%Y-%m-%d" --datetime-format "%Y-%m-%d %H:%M:%S"
+#%.csv : %.xlsx
+#	echo $<
+#	echo $@
+#	echo $(patsubst %.csv,%.,$@)%s.csv
+#	echo ssconvert -S $< $(patsubst %.csv,%.,$@)%s.csv 2>/dev/null
 
-test:
-	@echo $(XLS_FILES)
-	@echo $(CSV_FILES)
+#csv2tsv: xls2csv
+#	find .  -name '*.csv' | ./logbook.awk > $(DTARGET)
+
+all: $(DTARGET)
+
+$(DTARGET): xls2csv3
+	find . -name '*.csv' -exec ./logbook.awk {} > $@ \;
+	@echo "$@ done"
 
 clean: clean-csv clean-tsv
+	tree
 
 clean-csv:
 	find . -type f -name '*.csv' -exec rm -f {}  \;
