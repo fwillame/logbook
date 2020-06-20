@@ -19,6 +19,9 @@ $(DTARGET):
 	find -L $(SRC_DIR) -name '*.csv' -exec ./logbook.awk {} > $@ \;
 	echo "$@ done"
 
+#
+#	find -L $(SRC_DIR)  -name '*.xls' -o -name '*.xlsx' | xargs -0 in2csv -f xlsx --write-sheets "-"
+# xargs -d '\n'
 # options for in2csv  --date-format "%Y-%m-%d" --datetime-format "%Y-%m-%d %H:%M:%S"
 
 test:
