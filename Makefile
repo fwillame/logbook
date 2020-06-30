@@ -1,56 +1,59 @@
 #!/usr/bin/make -f
 
-TARGET := test
+-include Makefile.defs
 keyID = francois.willame@gmail.com
 
--include Makefile.defs
+SRC_DIR	:= dagbok
+OBJ_DIR := temp
+
+TARGET := test
 
 DATE := $(shell date -I)
-DTARGET := $(TARGET).$(DATE)
+EXE := $(TARGET).$(DATE).tsv
 
-# with in2csv
-xls2csv1: clean-csv
-	find .  -name "*.xls" -o -name "*.xlsx" -exec in2csv -t --write-sheets "-" {}  \;
+OBJ = $(wildcard $(OBJ_DIR)/*.xlsx)					# alt 1
+#OBJ := $(shell find -L $(OBJ_DIR) -name '*.xlsx')		# alt 2
+CSV = $(OBJ:$(OBJ_DIR)/%.xlsx=$(OBJ_DIR)/%.csv)
+TXT = $(OBJ:$(OBJ_DIR)/%.xlsx=$(OBJ_DIR)/%.txt)
+#TXS = $(patsubst %.txt,%.,$(TXT))%s.txt
 
-# with ssconvert (gnumeric) and exec
-xls2csv2: clean-csv
-	find .  -name "*.xls" -o -name "*.xlsx" -exec ssconvert --import-encoding=UTF-8 -S {} {}.%s.csv  \;  # 2>/dev/null
+#$(OBJ_DIR):
+#	mkdir -p $@
 
+$(OBJ_DIR): $(SRC_DIR)
+	mkdir -p $@
+	rsync -rup $</ $@
+	rename "s/ /_/g" $@/*
 
-# with ssconvert (gnumeric) and xargs
-xls2csv3: clean-csv
-	find .  -name "*.xls" -o -name "*.xlsx" | xargs -I{} ssconvert -S {} $(patsubst %.xlsx,%.,{}).%s.csv
-
-#%.csv : %.xlsx
-#	echo $<
-#	echo $@
-#	echo $(patsubst %.csv,%.,$@)%s.csv
-#	echo ssconvert -S $< $(patsubst %.csv,%.,$@)%s.csv 2>/dev/null
-
-#csv2tsv: xls2csv
-#	find .  -name '*.csv' | ./logbook.awk > $(DTARGET)
-
-all: $(DTARGET).in2csv.tsv $(DTARGET).ssconvert.tsv
-
-$(DTARGET).in2csv.tsv: xls2csv1
-	find . -name '*.csv' -exec ./logbook.in2csv.awk {} > $@ \;
-	@echo "$@ done"
+$(OBJ_DIR)/%.csv: $(OBJ_DIR)/%.xlsx
+	ssconvert --import-type=Gnumeric_Excel:xlsx $<  $@
 
 
-$(DTARGET).ssconvert.tsv: xls2csv2
-	find . -name '*.csv' -exec ./logbook.ssconvert.awk {} > $@ \;
-	@echo "$@ done"
+$(OBJ_DIR)/%.txt: $(OBJ_DIR)/%.xlsx
+	ssconvert -S --import-type=Gnumeric_Excel:xlsx -O 'separator="	" format="preserve" quoting-mode="auto"' $< $(patsubst %.txt,%.,$@)%s.txt 2>/dev/null
+	rename "s/ /_/g" $(OBJ_DIR)/*.txt
 
-clean: clean-csv clean-tsv
-	tree
+convert: $(TXT)
 
-clean-csv:
+$(EXE): $(wildcard $(OBJ_DIR)/*.txt)
+	./logbook.ssconvert.awk $^ > $@
+
+# run "make clean prepare convert build"
+all: prepare convert build
+
+prepare: $(OBJ_DIR)
+
+build: $(EXE)
+
+clean:
 	find . -type f -name '*.csv' -exec rm -f {}  \;
-
-clean-tsv:
+	find . -type f -name '*.txt' -exec rm -f {}  \;
 	find . -type f -name '*.tsv' -exec rm -f {}  \;
+	$(RM) -rv $(OBJ_DIR) $(TMP_DIR) 			# The @ disables the echoing of the command
 
-push: $(DTARGET).in2csv.tsv $(DTARGET).ssconvert.tsv
+.PHONY: all prepare build clean
+
+push: $(EXE)
 	scp $^ $(USER)@$(HOST):$(PUBDIR)
 	@echo "upload done"
 
