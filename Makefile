@@ -6,18 +6,19 @@ keyID = francois.willame@gmail.com
 -include Makefile.defs
 
 DATE := $(shell date -I)
-DTARGET := $(TARGET).$(DATE).tsv
+DTARGET := $(TARGET).$(DATE)
 
 # with in2csv
-xls2csv1:
-	find .  -name "*.xls" -o -name "*.xlsx" -exec in2csv --write-sheets "-" {}  \;
+xls2csv1: clean-csv
+	find .  -name "*.xls" -o -name "*.xlsx" -exec in2csv -t --write-sheets "-" {}  \;
 
 # with ssconvert (gnumeric) and exec
-xls2csv2:
-	find .  -name "*.xls" -o -name "*.xlsx" -exec ssconvert -S {} {}.%s.csv  \;  # 2>/dev/null
+xls2csv2: clean-csv
+	find .  -name "*.xls" -o -name "*.xlsx" -exec ssconvert --import-encoding=UTF-8 -S {} {}.%s.csv  \;  # 2>/dev/null
+
 
 # with ssconvert (gnumeric) and xargs
-xls2csv3:
+xls2csv3: clean-csv
 	find .  -name "*.xls" -o -name "*.xlsx" | xargs -I{} ssconvert -S {} $(patsubst %.xlsx,%.,{}).%s.csv
 
 #%.csv : %.xlsx
@@ -29,10 +30,15 @@ xls2csv3:
 #csv2tsv: xls2csv
 #	find .  -name '*.csv' | ./logbook.awk > $(DTARGET)
 
-all: $(DTARGET)
+all: $(DTARGET).in2csv.tsv $(DTARGET).ssconvert.tsv
 
-$(DTARGET): xls2csv3
-	find . -name '*.csv' -exec ./logbook.awk {} > $@ \;
+$(DTARGET).in2csv.tsv: xls2csv1
+	find . -name '*.csv' -exec ./logbook.in2csv.awk {} > $@ \;
+	@echo "$@ done"
+
+
+$(DTARGET).ssconvert.tsv: xls2csv2
+	find . -name '*.csv' -exec ./logbook.ssconvert.awk {} > $@ \;
 	@echo "$@ done"
 
 clean: clean-csv clean-tsv
@@ -44,7 +50,7 @@ clean-csv:
 clean-tsv:
 	find . -type f -name '*.tsv' -exec rm -f {}  \;
 
-push: $(DTARGET)
+push: $(DTARGET).in2csv.tsv $(DTARGET).ssconvert.tsv
 	scp $^ $(USER)@$(HOST):$(PUBDIR)
 	@echo "upload done"
 
